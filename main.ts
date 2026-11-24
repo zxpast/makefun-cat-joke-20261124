@@ -31,6 +31,9 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+// Output goes to MAKEFUN_OUTPUT_DIR when the harness sets it,
+// otherwise to /output. The path is resolved once here so every
+// error below can name the exact destination file.
 const OUTPUT_DIR = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
 const LINE =
@@ -54,8 +57,13 @@ try {
   process.exit(1);
 }
 
-// Read the file back: the gate reads exactly these bytes, so a short or
-// mangled write must fail here rather than ship a broken entry.
+// Read the file back and compare byte-for-byte, including the
+// trailing newline: the gate reads exactly these bytes, so a short,
+// truncated, or mangled write must fail here rather than ship a
+// broken entry. This is also what makes the output deterministic —
+// the same LINE always produces the same file, and this check
+// proves the file on disk is that exact content, not just that
+// the write call returned without throwing.
 let back: string;
 try {
   back = readFileSync(DEST, 'utf8');
@@ -64,6 +72,9 @@ try {
   process.exit(1);
 }
 if (back !== LINE + '\n') {
-  console.error(`entry.txt read back does not match the entry line (got ${back.length} bytes)`);
+  console.error(
+    `entry.txt at ${DEST} read back does not match the entry line ` +
+      `(expected ${LINE.length + 1} bytes, got ${back.length} bytes)`,
+  );
   process.exit(1);
 }
